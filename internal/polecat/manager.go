@@ -1756,6 +1756,21 @@ func isSessionProcessDead(t *tmux.Tmux, sessionName string, townRoot string) boo
 // Configurable via operational.polecat.pending_max_age in settings/config.json.
 const pendingMaxAge = 5 * time.Minute
 
+// resetBeadsAndRemoveOrphanDir updates beads then removes a polecat directory
+// that is empty or incomplete. This keeps dispatch metadata in sync when
+// cleanupOrphanPolecatState removes dirs (avoids "bead assigned but no polecat").
+func (m *Manager) resetBeadsAndRemoveOrphanDir(name, polecatDir, reason string) {
+	agentID := m.agentBeadID(name)
+	if err := m.beads.ResetAgentBeadForReuse(agentID, "orphan directory cleanup"); err != nil {
+		if !errors.Is(err, beads.ErrNotFound) {
+			style.PrintWarning("could not reset agent bead %s during orphan cleanup: %v", agentID, err)
+		}
+	}
+	m.unassignWorkBeads(name)
+	style.PrintWarning("removing orphan polecat dir %s/%s (%s)", m.rig.Name, name, reason)
+	_ = os.RemoveAll(polecatDir)
+}
+
 // cleanupOrphanPolecatState removes partial/broken polecat state during allocation.
 // This handles the race condition where worktree creation fails mid-way, leaving:
 // - Empty polecat directories without .git
@@ -1796,15 +1811,15 @@ func (m *Manager) cleanupOrphanPolecatState() {
 
 		// Check if clone directory exists
 		if _, err := os.Stat(clonePath); os.IsNotExist(err) {
-			// Empty polecat directory without clone - remove it
-			_ = os.RemoveAll(polecatDir)
+			// Empty polecat directory without clone - update beads then remove dir
+			m.resetBeadsAndRemoveOrphanDir(name, polecatDir, "empty")
 			continue
 		}
 
 		// Check if .git exists (file for worktree, or directory for full clone)
 		if _, err := os.Stat(gitPath); os.IsNotExist(err) {
-			// Clone exists but no .git - incomplete worktree, remove it
-			_ = os.RemoveAll(polecatDir)
+			// Clone exists but no .git - incomplete worktree, update beads then remove dir
+			m.resetBeadsAndRemoveOrphanDir(name, polecatDir, "no .git")
 			continue
 		}
 	}

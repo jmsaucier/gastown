@@ -288,9 +288,18 @@ func (m *SessionManager) Start(polecat string, opts SessionStartOptions) error {
 	}
 	beacon := session.FormatStartupBeacon(beaconConfig)
 
+	// Build startup command using the same resolved agent as runtimeConfig.
+	// Passing the resolved agent name ensures the command uses town default_agent
+	// (or role_agents["polecat"]) when no explicit --agent override is set.
+	// Without this, BuildStartupCommandFromConfig would resolve again internally;
+	// passing it explicitly avoids any path/cwd mismatch and keeps command and config in sync.
 	command := opts.Command
 	if command == "" {
 		var err error
+		agentForCommand := opts.Agent
+		if agentForCommand == "" && runtimeConfig != nil && runtimeConfig.ResolvedAgent != "" {
+			agentForCommand = runtimeConfig.ResolvedAgent
+		}
 		command, err = config.BuildStartupCommandFromConfig(config.AgentEnvConfig{
 			Role:        "polecat",
 			Rig:         m.rig.Name,
@@ -300,7 +309,7 @@ func (m *SessionManager) Start(polecat string, opts SessionStartOptions) error {
 			Issue:       opts.Issue,
 			Topic:       "assigned",
 			SessionName: sessionID,
-		}, m.rig.Path, beacon, "")
+		}, m.rig.Path, beacon, agentForCommand)
 		if err != nil {
 			return fmt.Errorf("building startup command: %w", err)
 		}

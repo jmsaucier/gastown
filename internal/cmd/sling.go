@@ -862,7 +862,7 @@ func runSling(cmd *cobra.Command, args []string) (retErr error) {
 			if newPolecatInfo != nil {
 				fmt.Printf("%s Formula instantiation failed, rolling back spawned polecat %s...\n",
 					style.Warning.Render("⚠"), newPolecatInfo.PolecatName)
-				rollbackSlingArtifactsFn(newPolecatInfo, beadID, hookWorkDir, "")
+				rollbackSlingArtifactsFn(townRoot, newPolecatInfo, beadID, hookWorkDir, "")
 				// Under --force, if this bead was previously pinned, rollback's unhook would otherwise
 				// clear the pinned state. Restore pinned state so we don't lose the original hook.
 				if force && originalStatus == "pinned" {
@@ -970,8 +970,9 @@ func runSling(cmd *cobra.Command, args []string) (retErr error) {
 		if err != nil {
 			// Rollback: session failed, clean up zombie artifacts (worktree, hooked bead).
 			// Without rollback, next sling attempt fails with "bead already hooked" (gt-jn40ft).
-			fmt.Printf("%s Session failed, rolling back spawned polecat %s...\n", style.Warning.Render("⚠"), newPolecatInfo.PolecatName)
-			rollbackSlingArtifactsFn(newPolecatInfo, beadID, hookWorkDir, "")
+			fmt.Printf("%s Session start failed: %v\n", style.Dim.Render("✗"), err)
+			fmt.Printf("%s Rolling back spawned polecat %s...\n", style.Warning.Render("⚠"), newPolecatInfo.PolecatName)
+			rollbackSlingArtifactsFn(townRoot, newPolecatInfo, beadID, hookWorkDir, "")
 			return fmt.Errorf("starting polecat session: %w", err)
 		}
 		targetPane = pane
@@ -1090,17 +1091,27 @@ func tryAcquireSlingBeadLock(townRoot, beadID string) (func(), error) {
 // rollbackSlingArtifacts cleans up artifacts left by a partial sling when session start fails.
 // This prevents zombie polecats that block subsequent sling attempts with "bead already hooked".
 // Cleanup is best-effort: each step logs warnings but continues to clean as much as possible.
-func rollbackSlingArtifacts(spawnInfo *SpawnedPolecatInfo, beadID, hookWorkDir, convoyID string) {
-	townRoot, err := workspace.FindFromCwdOrError()
+// If townRoot is empty, resolves from cwd; pass explicit townRoot when calling from dispatch
+// so rollback works when cwd is outside the workspace (e.g. daemon).
+func rollbackSlingArtifacts(townRoot string, spawnInfo *SpawnedPolecatInfo, beadID, hookWorkDir, convoyID string) {
+	if townRoot == "" {
+		var err error
+		townRoot, err = workspace.FindFromCwdOrError()
+		if err != nil {
+			// Still try cleanup so cleanupSpawnedPolecat can use its own cwd fallback
+			townRoot = ""
+			if beadID != "" {
+				fmt.Printf("  %s Could not find workspace to rollback bead %s: %v\n", style.Dim.Render("Warning:"), beadID, err)
+			}
+		}
+	}
 
 	// 1. Burn any attached molecules from partial formula instantiation.
 	// This clears attached_molecule metadata and closes stale wisps that
 	// otherwise block subsequent sling attempts.
 	// Some failure modes happen before any bead is hooked (e.g., wisp creation fails).
-	if beadID != "" {
-		if err != nil {
-			fmt.Printf("  %s Could not find workspace to rollback bead %s: %v\n", style.Dim.Render("Warning:"), beadID, err)
-		} else {
+	if beadID != "" && townRoot != "" {
+		{
 			info, infoErr := getBeadInfoForRollback(beadID)
 			if infoErr != nil {
 				fmt.Printf("  %s Could not inspect bead %s for stale molecules: %v\n", style.Dim.Render("Warning:"), beadID, infoErr)
@@ -1125,9 +1136,9 @@ func rollbackSlingArtifacts(spawnInfo *SpawnedPolecatInfo, beadID, hookWorkDir, 
 			} else {
 				fmt.Printf("  %s Unhooked bead %s\n", style.Dim.Render("○"), beadID)
 			}
-		}
+	}
 	}
 
 	// 3. Clean up the spawned polecat (worktree, agent bead, convoy, etc.)
-	cleanupSpawnedPolecat(spawnInfo, spawnInfo.RigName, convoyID)
+	cleanupSpawnedPolecat(townRoot, spawnInfo, spawnInfo.RigName, convoyID)
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -553,12 +554,12 @@ func runSessionStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	polecatMgr, _, err := getSessionManager(rigName)
+	sessMgr, _, err := getSessionManager(rigName)
 	if err != nil {
 		return err
 	}
 
-	info, err := polecatMgr.Status(polecatName)
+	info, err := sessMgr.Status(polecatName)
 	if err != nil {
 		return fmt.Errorf("getting status: %w", err)
 	}
@@ -574,6 +575,15 @@ func runSessionStatus(cmd *cobra.Command, args []string) error {
 	if info.Running {
 		fmt.Printf("  State: %s\n", style.Bold.Render("● running"))
 	} else {
+		// When session is stopped, check if polecat worktree still exists so we can
+		// show a clearer message when the worktree was removed (e.g. after rollback).
+		if polecatMgr, _, getErr := getPolecatManager(rigName); getErr == nil {
+			if _, getPoleErr := polecatMgr.Get(polecatName); getPoleErr != nil && errors.Is(getPoleErr, polecat.ErrPolecatNotFound) {
+				fmt.Printf("  State: %s\n", style.Dim.Render("○ stopped"))
+				fmt.Printf("  %s Polecat no longer exists (worktree removed). Session state: stopped.\n", style.Dim.Render("Note:"))
+				return nil
+			}
+		}
 		fmt.Printf("  State: %s\n", style.Dim.Render("○ stopped"))
 		return nil
 	}

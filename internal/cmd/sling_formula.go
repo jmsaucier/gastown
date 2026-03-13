@@ -116,7 +116,7 @@ func runSlingFormula(ctx context.Context, args []string) error {
 			return
 		}
 		fmt.Printf("%s Rolling back spawned polecat %s...\n", style.Warning.Render("⚠"), resolved.NewPolecatInfo.PolecatName)
-		rollbackSlingArtifactsFn(resolved.NewPolecatInfo, beadID, formulaWorkDir, "")
+		rollbackSlingArtifactsFn(townRoot, resolved.NewPolecatInfo, beadID, formulaWorkDir, "")
 	}
 
 	if slingDryRun {
@@ -228,7 +228,7 @@ func runSlingFormula(ctx context.Context, args []string) error {
 		pane, err := resolved.NewPolecatInfo.StartSession()
 		if err != nil {
 			// Rollback: unhook wisp, delete Dolt branch, clean up polecat worktree/agent bead
-			rollbackSlingArtifactsFn(resolved.NewPolecatInfo, wispRootID, "", "")
+			rollbackSlingArtifactsFn(townRoot, resolved.NewPolecatInfo, wispRootID, "", "")
 			return fmt.Errorf("starting polecat session: %w", err)
 		}
 		targetPane = pane

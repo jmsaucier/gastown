@@ -221,10 +221,15 @@ func runBatchSling(beadIDs []string, rigName string, townBeadsDir string) error 
 // cleanupSpawnedPolecat removes a polecat that was spawned but whose session/hook failed,
 // preventing orphaned polecats from accumulating. Cleans up worktree, agent bead, git branch,
 // and optionally the associated auto-convoy.
-func cleanupSpawnedPolecat(spawnInfo *SpawnedPolecatInfo, rigName, convoyID string) {
-	townRoot, err := workspace.FindFromCwdOrError()
-	if err != nil {
-		return
+// If townRoot is empty, resolves from cwd (workspace.FindFromCwdOrError); pass explicit
+// townRoot when calling from dispatch/daemon so rollback works when cwd is outside the workspace.
+func cleanupSpawnedPolecat(townRoot string, spawnInfo *SpawnedPolecatInfo, rigName, convoyID string) {
+	if townRoot == "" {
+		var err error
+		townRoot, err = workspace.FindFromCwdOrError()
+		if err != nil {
+			return
+		}
 	}
 	rigsConfigPath := filepath.Join(townRoot, "mayor", "rigs.json")
 	rigsConfig, err := config.LoadRigsConfig(rigsConfigPath)

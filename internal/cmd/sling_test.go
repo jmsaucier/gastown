@@ -445,7 +445,7 @@ exit /b 0
 	}
 
 	rollbackCalled := false
-	rollbackSlingArtifactsFn = func(spawnInfo *SpawnedPolecatInfo, beadID, hookWorkDir, convoyID string) {
+	rollbackSlingArtifactsFn = func(townRootArg string, spawnInfo *SpawnedPolecatInfo, beadID, hookWorkDir, convoyID string) {
 		rollbackCalled = true
 		if spawnInfo == nil || spawnInfo.PolecatName != "Toast" {
 			t.Fatalf("unexpected spawnInfo in rollback: %+v", spawnInfo)
@@ -456,6 +456,7 @@ exit /b 0
 		if want := filepath.Join(townRoot, "fake-polecat"); hookWorkDir != want {
 			t.Fatalf("unexpected hookWorkDir in rollback: got %q want %q", hookWorkDir, want)
 		}
+		_ = townRootArg
 	}
 
 	err = runSling(nil, []string{"gt-abc123", "gastown"})
@@ -544,7 +545,7 @@ exit /b 0
 		return nil
 	}
 
-	rollbackSlingArtifacts(&SpawnedPolecatInfo{
+	rollbackSlingArtifacts("", &SpawnedPolecatInfo{
 		RigName:     "gastown",
 		PolecatName: "Toast",
 	}, "gt-abc123", "", "")
@@ -673,7 +674,7 @@ exit /b 0
 	}
 
 	rollbackCalled := false
-	rollbackSlingArtifactsFn = func(spawnInfo *SpawnedPolecatInfo, beadID, hookWorkDir, convoyID string) {
+	rollbackSlingArtifactsFn = func(townRootArg string, spawnInfo *SpawnedPolecatInfo, beadID, hookWorkDir, convoyID string) {
 		rollbackCalled = true
 		if spawnInfo == nil || spawnInfo.PolecatName != "Toast" {
 			t.Fatalf("unexpected spawnInfo in rollback: %+v", spawnInfo)
@@ -684,6 +685,7 @@ exit /b 0
 		if hookWorkDir != fakeWorkDir {
 			t.Fatalf("unexpected hookWorkDir in rollback: got %q want %q", hookWorkDir, fakeWorkDir)
 		}
+		_ = townRootArg
 	}
 
 	err = runSlingFormula(context.Background(), []string{"mol-anything", "gastown"})

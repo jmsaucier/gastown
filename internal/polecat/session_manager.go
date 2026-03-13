@@ -264,6 +264,17 @@ func (m *SessionManager) Start(polecat string, opts SessionStartOptions) error {
 		runtimeConfig = config.ResolveRoleAgentConfig("polecat", townRoot, m.rig.Path)
 	}
 
+	// Harden GT_AGENT path: ensure ResolvedAgent is never empty so the fallback and
+	// post-start validation do not kill the session. Missing/invalid rig config
+	// (e.g. cds_solid_foundations) can leave ResolvedAgent unset.
+	if runtimeConfig == nil {
+		runtimeConfig = &config.RuntimeConfig{ResolvedAgent: "claude"}
+		style.PrintWarning("polecat %s/%s: no runtime config for rig, using default agent claude", m.rig.Name, polecat)
+	} else if runtimeConfig.ResolvedAgent == "" {
+		runtimeConfig.ResolvedAgent = "claude"
+		style.PrintWarning("polecat %s/%s: ResolvedAgent empty for rig, using default claude", m.rig.Name, polecat)
+	}
+
 	// Ensure runtime settings exist in the shared polecats parent directory.
 	// Settings are passed to Claude Code via --settings flag.
 	polecatSettingsDir := config.RoleSettingsDir("polecat", m.rig.Path)
@@ -482,19 +493,24 @@ func (m *SessionManager) Start(polecat string, opts SessionStartOptions) error {
 		return fmt.Errorf("verifying session: %w", err)
 	}
 	if !running {
-		return fmt.Errorf("session %s died during startup (agent command may have failed)", sessionID)
+		return fmt.Errorf("session %s died during startup (agent command may have failed). "+
+			"Check agent process logs and startup command for this rig", sessionID)
 	}
 
 	// Validate GT_AGENT is set. Without GT_AGENT, IsAgentAlive falls back to
 	// ["node", "claude"] process detection and witness patrol will auto-nuke
 	// polecats running non-Claude agents (e.g., opencode). Fail fast.
 	gtAgent, _ := m.tmux.GetEnvironment(sessionID, "GT_AGENT")
+	commandStr := ""
+	if runtimeConfig != nil {
+		commandStr = runtimeConfig.Command
+	}
 	if gtAgent == "" {
 		_ = m.tmux.KillSessionWithProcesses(sessionID)
 		return fmt.Errorf("GT_AGENT not set in session %s (command=%q); "+
 			"witness patrol will misidentify this polecat as a zombie and auto-nuke it. "+
-			"Ensure RuntimeConfig.ResolvedAgent is set during agent config resolution",
-			sessionID, runtimeConfig.Command)
+			"Check role_agents / default_agent and ResolvedAgent for this rig",
+			sessionID, commandStr)
 	}
 
 	// Track PID for defense-in-depth orphan cleanup (non-fatal)

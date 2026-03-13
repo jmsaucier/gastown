@@ -228,6 +228,7 @@ func runSlingFormula(ctx context.Context, args []string) error {
 		pane, err := resolved.NewPolecatInfo.StartSession()
 		if err != nil {
 			// Rollback: unhook wisp, delete Dolt branch, clean up polecat worktree/agent bead
+			notifyOverseerPolecatFailure(townRoot, resolved.NewPolecatInfo.RigName, resolved.NewPolecatInfo.PolecatName, wispRootID, err.Error())
 			rollbackSlingArtifactsFn(townRoot, resolved.NewPolecatInfo, wispRootID, "", "")
 			return fmt.Errorf("starting polecat session: %w", err)
 		}

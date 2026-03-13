@@ -971,6 +971,7 @@ func runSling(cmd *cobra.Command, args []string) (retErr error) {
 			// Rollback: session failed, clean up zombie artifacts (worktree, hooked bead).
 			// Without rollback, next sling attempt fails with "bead already hooked" (gt-jn40ft).
 			fmt.Printf("%s Session start failed: %v\n", style.Dim.Render("✗"), err)
+			notifyOverseerPolecatFailure(townRoot, newPolecatInfo.RigName, newPolecatInfo.PolecatName, beadID, err.Error())
 			fmt.Printf("%s Rolling back spawned polecat %s...\n", style.Warning.Render("⚠"), newPolecatInfo.PolecatName)
 			rollbackSlingArtifactsFn(townRoot, newPolecatInfo, beadID, hookWorkDir, "")
 			return fmt.Errorf("starting polecat session: %w", err)

@@ -351,6 +351,7 @@ func executeSling(params SlingParams) (*SlingResult, error) {
 	pane, err := spawnInfo.StartSession()
 	if err != nil {
 		fmt.Printf("  %s Session start failed: %v\n", style.Dim.Render("✗"), err)
+		notifyOverseerPolecatFailure(townRoot, spawnInfo.RigName, spawnInfo.PolecatName, beadToHook, err.Error())
 		fmt.Printf("  %s Cleaning up partial state (rollback)...\n", style.Dim.Render("○"))
 		rollbackSlingArtifactsFn(townRoot, spawnInfo, beadToHook, hookWorkDir, convoyID)
 		result.ErrMsg = fmt.Sprintf("session failed: %v", err)

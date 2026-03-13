@@ -20,6 +20,7 @@ import (
 	"github.com/steveyegge/gastown/internal/constants"
 	"github.com/steveyegge/gastown/internal/daemon"
 	"github.com/steveyegge/gastown/internal/formula"
+	"github.com/steveyegge/gastown/internal/mail"
 	rigpkg "github.com/steveyegge/gastown/internal/rig"
 	"github.com/steveyegge/gastown/internal/session"
 	"github.com/steveyegge/gastown/internal/style"
@@ -1183,5 +1184,24 @@ func updateAgentMode(agentID, mode, workDir, townBeadsDir string) {
 	bd := beads.New(agentWorkDir)
 	if err := bd.UpdateAgentDescriptionFields(agentBeadID, beads.AgentFieldUpdates{Mode: &mode}); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: couldn't set agent %s mode: %v\n", agentBeadID, err)
+	}
+}
+
+// notifyOverseerPolecatFailure sends mail to the human overseer when a polecat
+// session fails to start (so you get notified of failures). Best-effort: logs
+// a warning if mail send fails without affecting rollback.
+func notifyOverseerPolecatFailure(townRoot, rigName, polecatName, beadID, errMsg string) {
+	if townRoot == "" {
+		return
+	}
+	subject := fmt.Sprintf("POLECAT_FAILURE: %s/%s", rigName, polecatName)
+	body := fmt.Sprintf("Polecat session failed to start.\n\nRig: %s\nPolecat: %s\nBead: %s\n\nError: %s\n\nRollback (worktree removal) has been run. Re-sling the bead to retry.",
+		rigName, polecatName, beadID, errMsg)
+	msg := mail.NewMessage("mayor/", "overseer", subject, body)
+	msg.Priority = mail.PriorityHigh
+	router := mail.NewRouter(townRoot)
+	defer router.WaitPendingNotifications()
+	if err := router.Send(msg); err != nil {
+		style.PrintWarning("could not notify overseer of polecat failure: %v", err)
 	}
 }
